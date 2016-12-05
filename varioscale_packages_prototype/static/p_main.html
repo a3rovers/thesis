@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link href="../nprogress.css" rel="stylesheet">
+<script type="text/javascript" src="../d3.js"></script>
+<script type="text/javascript" src="../d3.geo.tile.v0.min.js"></script>
+<!--<script type="text/javascript" src="../ring.js"></script>-->
+
+<style>
+  body {
+    margin: 0;
+  }
+  path {
+    fill: none;
+    stroke: black; /* #964B00; */
+    stroke-linejoin: round;
+    stroke-width: 0.5pt;
+    fill-opacity: 0.8;
+  }
+  .funky {
+    fill: none;
+    stroke: red;
+    stroke-linejoin: round;
+    stroke-width: 0.000001px;
+  }
+  .edges {
+    fill: none;
+    stroke: blue;
+    stroke-linejoin: round;
+    stroke-width: 1pt;
+  }
+  .graticule {
+    fill: none;
+    stroke: #777;
+    stroke-opacity: .5;
+    stroke-width: .5px;
+  }
+  .map {
+    margin: 1em;
+    border: 0em;
+  }
+  ul#legend li {
+    float:left;
+    margin:0.5em;
+    list-style: none;
+  }
+  /* corine */
+  .face.fc111 { fill: #E6004D; }
+  .face.fc112 { fill: #FF0000; }
+  .face.fc121 { fill: #CC4DF2; }
+  .face.fc122 { fill: #CC0000; }
+  .face.fc123 { fill: #E6CCCC; }
+  .face.fc124 { fill: #E6CCE6; }
+  .face.fc131 { fill: #A600CC; }
+  .face.fc132 { fill: #A64D00; }
+  .face.fc133 { fill: #FF4DFF; }
+  .face.fc141 { fill: #FFA6FF; }
+  .face.fc142 { fill: #FFE6FF; }
+  .face.fc211 { fill: #FFFFA8; }
+  .face.fc212 { fill: #FFFF00; }
+  .face.fc213 { fill: #E6E600; }
+  .face.fc221 { fill: #E68000; }
+  .face.fc222 { fill: #F2A64D; }
+  .face.fc223 { fill: #E6A600; }
+  .face.fc231 { fill: #E6E64D; }
+  .face.fc231 { fill: #E6E64D; }
+  .face.fc241 { fill: #FFE6A6; }
+  .face.fc242 { fill: #FFE64D; }
+  .face.fc243 { fill: #E6CC4D; }
+  .face.fc244 { fill: #F2CCA6; }
+  .face.fc311 { fill: #80FF00; }
+  .face.fc312 { fill: #00A600; }
+  .face.fc313 { fill: #4DFF00; }
+  .face.fc321 { fill: #CCF24D; }
+  .face.fc322 { fill: #A6FF80; }
+  .face.fc323 { fill: #A6E64D; }
+  .face.fc324 { fill: #A6F200; }
+  .face.fc331 { fill: #E6E6E6; }
+  .face.fc332 { fill: #CCCCCC; }
+  .face.fc333 { fill: #CCFFCC; }
+  .face.fc334 { fill: #000000; }
+  .face.fc335 { fill: #A6E6CC; }
+  .face.fc411 { fill: #A6A6FF; }
+  .face.fc412 { fill: #4D4DFF; }
+  .face.fc421 { fill: #CCCCFF; }
+  .face.fc422 { fill: #E6E6FF; }
+  .face.fc423 { fill: #A6A6E6; }
+  .face.fc511 { fill: #00CCF2; }
+  .face.fc512 { fill: #80F2E6; }
+  .face.fc521 { fill: #00FFA6; }
+  .face.fc522 { fill: #A6FFE6; }
+  .face.fc523 { fill: #E6F2FF; }
+  /* atkis */
+  .face.fc2101 { fill: #FA8072; }
+  .face.fc2112 { fill: #FF7F50; }
+  .face.fc2201 { fill: #CD5C5C; }
+  .face.fc2202 { fill: #FF6347; }
+  .face.fc2301 { fill: orange; }
+  .face.fc2213 { fill: #FF0000; }
+  .face.fc3103 { fill: #CDCDC1; }
+  .face.fc4101 { fill: #32CD32; }
+  .face.fc4102 { fill: #7CFC00; }
+  .face.fc4104 { fill: #9ACD32; }
+  .face.fc4107 { fill: #00FF00; }
+  .face.fc4108 { fill: #00FF00; }
+  .face.fc5112 { fill: #ABCDEF; }
+</style>
+
+<body>
+<div>
+  <a href="/">&larr; clients</a>
+  <div style="float: right;">
+    <p>Total packages retrieved: <span id="total_packages"></span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Packages used on screen:
+      <span id="screen_packages"></span>&nbsp;&nbsp;&nbsp;</p>
+  </div>
+</div>
+<div id="nprogress">
+  <div class="bar" role="bar">
+    <div class="peg"></div>
+  </div>
+  <div class="spinner" role="spinner">
+    <div class="spinner-icon"></div>
+  </div>
+</div>
+<div><span class="info"></span></div>
+
+<div id="map"></div>
+
+<form>
+  <fieldset>
+    <legend>settings</legend>
+    <p>
+      <label for="backdrop">
+        <input type="checkbox" id="backdrop">Draw tiles</label>
+      <label for="noColor" style="margin-left: 1em">
+        <input type="checkbox" id="noColor">No color</label>
+      <label for="colorChanges" style="margin-left: 1em">
+        <input type="checkbox" id="colorChanges">Color changes</label>
+      <label for="colorPackage" style="margin-left: 1em">
+        <input type="checkbox" id="colorPackage">Color Package</label>
+      <label for="colorCached" style="margin-left: 1em">
+        <input type="checkbox" id="colorCached">Color cached</label>
+    </p>
+    <p>optimal count &mdash; optimal number of area objects:</p>
+    <select id="optimalCount">
+      <option value="5">5</option>
+      <option value="10">10</option>
+      <option value="15">15</option>
+      <option value="20" selected="selected">20</option>
+      <option value="25">25</option>
+      <option value="30">30</option>
+      <option value="40">40</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+      <option value="150">150</option>
+      <option value="250">250</option>
+      <option value="500">500</option>
+    </select>
+  </fieldset>
+</form>
+
+<fieldset>
+  <legend>Legend (packages and their corresponding colors on screen)</legend>
+  <ul id="legend" style="padding:0px">
+  </ul>
+</fieldset>
+
+<!-- Load extension for caching functionality -------------------------------->
+<script type="text/javascript" src="../p_extension_impclient_drenthe.js"></script>
+<!--<script type="text/javascript" src="../p_extension_impserver.js"></script>-->
+<script>
+
+  // derived from http://bl.ocks.org/mbostock/5914438
+
+  var width = 960, // Math.max(960, window.innerWidth),
+      height = 550; // Math.max(500, window.innerHeight);
+
+  var tile = d3.geo.tile()
+      .size([width, height]);
+
+  var projection = d3.geo.mercator()
+      .scale((1 << 15) / 2 / Math.PI)
+      .translate([width / 2, height / 2]);
+
+  var center = projection([10.025187, 53.389048]);
+
+  var path = d3.geo.path()
+      .projection(projection);
+
+  var svg = d3.select("#map")
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .attr("class", "map")
+      .on("mousemove", mousemoved);
+
+  d3.select(window)
+      .on("mousedown", mousedown)
+      .on("mouseup", mouseup);
+
+  var raster = svg.append("g");
+  var vector = svg.append("g");
+
+  const RESOLUTION = 2.0 * 20037508.34;
+  var z = null;
+  var resolution = null;
+
+  // http://docs.openlayers.org/library/spherical_mercator.html
+  var zoom = d3.behavior.zoom()
+      .scale(projection.scale() * 2 * Math.PI) // inverse of what was set for projection
+      .scaleExtent([256, 1 << 30])
+      .translate([width - center[0], height - center[1]])
+      .on("zoom", update)
+      .on("zoomend", zoom_tgap);
+
+
+  // With the center computed, now adjust the projection such that
+  // it uses the zoom behavior’s translate and scale.
+  projection
+      .scale(1)
+      .translate([0, 0]);
+
+  function new_epsg3857path() {
+    // Only giving a custom "d3.geo.transform" works correct:
+    // "d3.geo.projection" messes things up badly because of adaptive
+    // re-sampling
+    var epsg3857screen = d3.geo.transform({
+      point: function (px, py) {
+        this.stream.point((px / RESOLUTION) * zoom.scale(),
+            (-py / RESOLUTION) * zoom.scale());
+      }
+    });
+
+    return d3.geo.path().projection(epsg3857screen)
+  }
+
+  function update() {
+    var tiles = tile
+        .scale(zoom.scale())
+        .translate(zoom.translate())();
+
+    // calculate new zoom-level and new resolution (m/pixel)
+    z = (Math.log(zoom.scale()) / Math.LN2) - 8; // 2**8 = 256 to subtract
+    resolution = (2 * Math.PI * 6378137) / (256 * Math.pow(2, z));
+
+    // This:
+    // * performs 'manual' scaling on zoom (i.e. transforming the path)
+    // * performs putting a transform when translate changes (i.e. setting
+    //   transform attribute on path)
+    var epsg3857path = new_epsg3857path();
+    vector
+        .selectAll("path")
+        .attr("d", epsg3857path);
+    vector
+        .attr("transform", "translate(" + zoom.translate() + ")");
+
+    if (enableBackdrop) {
+      var image = raster
+          .attr("transform", "scale(" + tiles.scale + ")translate("
+              + tiles.translate + ")")
+          .selectAll("image")
+          .data(tiles, function (d) {
+            return d;
+          });
+
+      image.exit()
+          .remove();
+
+      image.enter()
+          .append("image")
+          .attr("xlink:href", function (d) {
+            return "http://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/"
+                + d[2] + "/" + d[1] + "/" + d[0];
+          })
+          .attr("width", 1)
+          .attr("height", 1)
+          .attr("x", function (d) {
+            return d[0];
+          })
+          .attr("y", function (d) {
+            return d[1];
+          });
+
+    } else {
+      raster
+          .selectAll("image")
+          .data([])
+          .exit()
+          .remove();
+    }
+  }
+
+  var timer_id;
+
+  function zoom_tgap() {
+    clearTimeout(timer_id);
+    // retrieve_tgap is defined in the extension
+    timer_id = setTimeout(retrieve_tgap, 850);
+  }
+
+  var info = d3.select(".info");
+  var panning = false;
+
+  function mousedown() {
+    panning = true;
+  }
+
+  function mouseup() {
+    panning = false;
+  }
+
+  function mousemoved() {
+    // if the left mouse button is down we do not change the position where the
+    // mouse is
+    if (panning) {
+      return;
+    }
+    var cur = d3.mouse(this); // current mouse position
+    var text = "";
+    text += " &rarr; " + Math.round((-zoom.translate()[0] + cur[0])
+            * resolution * 10) / 10 + " " + Math.round((zoom.translate()[1]
+            - cur[1]) * resolution * 10) / 10;
+    text += " @z " + Math.round(z * 100) / 100;
+    info.html(text);
+  }
+
+  var enableBackdrop = false;
+  d3.select("#backdrop").on("change", function () {
+    enableBackdrop = this.checked;
+    update();
+  });
+
+  d3.select("#optimalCount").on("change", function () {
+    console.log("optimal count did change");
+    zoom_tgap(false);
+  });
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Extension:                                                                //
+///////////////////////////////////////////////////////////////////////////////
+
+  // -- No color options ------------------------------------------------------
+  var vector_default = vector.append("g");
+
+  var noColor = false;
+  d3.select("#noColor").on("change", function () {
+    noColor = this.checked;
+    update();
+  });
+
+  // -- Color changes ---------------------------------------------------------
+  var vector_incoming = vector.append("g");
+
+  var colorChanges = false;
+  d3.select("#colorChanges").on("change", function () {
+    colorChanges = this.checked;
+    update();
+    zoom_tgap();
+  });
+
+  // -- Color packages --------------------------------------------------------
+  var vector_packages = vector.append("g");
+
+  // Initialize dictionary for keeping track of package colors:
+  var package_colors = {};
+
+  var colorPackage = false;
+  d3.select("#colorPackage").on("change", function () {
+    colorPackage = this.checked;
+    update();
+    zoom_tgap();
+  });
+
+  // Get handle to package legend:
+  var package_legend = d3.select("#legend");
+
+  // -- Color cached ----------------------------------------------------------
+  var vector_new = vector.append("g");
+  var vector_cached = vector.append("g");
+
+  var cached_package_ids = new Set();
+
+  var colorCached = false;
+  d3.select("#colorCached").on("change", function () {
+    colorCached = this.checked;
+    update();
+    zoom_tgap();
+  });
+
+  // -- Get index -------------------------------------------------------------
+  var index, root_id;
+  d3.json("../index/index.json", function (error, idx) {
+    index = idx[0];
+    root_id = idx[1]["root"];
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Main:                                                                 //
+    ///////////////////////////////////////////////////////////////////////////
+                                                                             //
+    // https://github.com/d3/d3-3.x-api-reference/blob/master/Behaviors.md   //
+    // This attaches the zoom behavior to the svg object.. but the actions   //
+    // are not performed!                                                    //
+    svg.call(zoom);                                                          //
+    update();                                                                //
+    zoom_tgap();                                                             //
+                                                                             //
+    ///////////////////////////////////////////////////////////////////////////
+  });
+
+</script>
+</body>
